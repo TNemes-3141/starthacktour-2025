@@ -1,11 +1,11 @@
 import { Geist, Geist_Mono } from "next/font/google";
 
 export const primaryFont = Geist({
-    variable: "--font-geist-sans",
+    variable: "--font-primary",
     subsets: ["latin"],
 });
 
-export const secondaryFont = Geist_Mono({
-    variable: "--font-geist-mono",
+export const monoFont = Geist_Mono({
+    variable: "--font-monospace",
     subsets: ["latin"],
 });

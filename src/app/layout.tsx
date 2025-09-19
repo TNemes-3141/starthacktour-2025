@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { primaryFont, secondaryFont } from "@/lib/fonts"; 
+import { primaryFont, monoFont } from "@/lib/fonts";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Challenger Class - SHT 2025",
@@ -13,11 +14,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`${primaryFont.variable} ${secondaryFont.variable} antialiased`}
+        className={`${primaryFont.variable} ${monoFont.variable} antialiased`}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );
