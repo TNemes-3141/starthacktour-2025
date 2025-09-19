@@ -1,0 +1,408 @@
+Here’s a **complete, end-to-end plan** you can hand to engineering to implement the full system exactly as specced (YOLOv8 front gate → flexible specialist refinement (local or external) → spherical geometry + ROI depth band → probabilistic cross-frame reasoning → global risk map). I’ve organized it by architecture, data flow, algorithms, APIs, data models, threading, parameters, testing, and deployment.
+
+---
+
+# 0) Goals & scope
+
+* Input: 5 FPS video on Samsung Galaxy A14 (Android).
+* Output per frame: stable tracked objects with `{label ∈ {paraglider, drone, bird, airplane, unknown}, bbox, (θ,φ), r̂, [r_min, r_max], pdf on segment}`, plus an updated 3D **spherical risk field**.
+* Constraints: low latency; minimal training; ability to **flexibly refine low-confidence YOLO detections** via **local or external** specialist pipelines.
+* Tracking & cross-frame fusion: association; radial velocity convolution; direction-of-motion correction; cylinder update into global risk map.
+
+---
+
+# 1) System architecture (high level)
+
+**On-device (Android app, Kotlin/NDK C++):**
+
+* **Thread T0 (Camera):** CameraX YUV stream → ring buffer.
+* **Thread T1 (Detection):** YOLOv8 (TFLite/NCNN) on full frame → detections.
+* **Thread T2 (Refinement Router):** For *unconfident* detections, fan-out ROI to configured **SpecialistEngines** (local or external). Returns a label/conf or unknown.
+* **Thread T3 (Geometry+Depth):** Pixel→(θ,φ); **DepthAnything-mobile** on ROI → r̂; margins → radial line segment.
+* **Thread T4 (Data association + Probabilistic update):** Assign to tracks (Hungarian); perform radial convolution & direction correction; (re)initialize priors; update **Risk(r,θ,φ)**.
+* **Thread T5 (Tracking core):** KCF/CSRT (+ Kalman); track lifecycle.
+* **Thread T6 (I/O & Telemetry):** Logging, metrics, debug overlays, config hot-reload.
+
+**Optional external services (LAN/cloud or sidecar process):**
+
+* **SpecialistEngine(s)** implementing `/infer` (HTTP) or gRPC (e.g., paraglider expert, general fine classifier). Request includes ROI JPEG + hints + deadline; response returns `{label, confidence}`.
+
+---
+
+# 2) Data pipeline (per frame)
+
+1. **YOLOv8 gate** on the full frame. For each detection `det=(bbox, class_probs)`:
+
+   * If `max(class_probs) ≥ τ_cls`: accept `label=argmax`, `conf=max`.
+   * Else: send `ROI(bbox, yolo_probs)` to **SpecialistRouter**.
+
+2. **SpecialistRouter** (pluggable):
+
+   * Select engines by **SelectionPolicy** (e.g., if top-2 includes “paraglider”, try ParagliderLocal first, else fan-out).
+   * Invoke engines **in parallel** with a **time budget** (e.g., 120 ms per ROI).
+   * **DecisionPolicy** returns the first confident (≥ τ\_spec) or the max-score before deadline. If none, `label='unknown'`.
+
+3. **Angles** (spherical, camera origin): compute `(θ,φ)` from bbox center using intrinsics `(fx,fy,cx,cy)` and (optionally) device pose for world stabilization.
+
+4. **Depth on ROI**: run DepthAnything-mobile over ROI crop → `r̂`. Apply **custom margins** `m⁻, m⁺` to get line segment `[r_min, r_max]`. Discretize to bins `r_j` (Δr).
+
+5. **Association** with previous tracks:
+
+   * Cost = `wθφ * angular_distance + wIoU * (1−IoU) + wlbl * label_mismatch + wBC * (−Bhattacharyya)` (if prior pdf exists).
+   * Hungarian assignment; gating on max cost.
+
+6. **Radial probability update**:
+
+   * If previous pdf exists: **convolve** along radius with `N(μ= v_r Δt, σ= σ_v Δt)`.
+   * **Direction-of-motion correction**: scale by `α_dir = exp(−½ δ^2)` using predicted vs. observed angles; mix with small uniform mass.
+   * Optional blend with a **depth Gaussian** and label confidence.
+   * If **no prior**, initialize Gaussian on the segment with configurable `(μ0,σ0)`.
+
+7. **Risk map update**:
+
+   * Time-decay global `Risk ← (1−λ_decay)·Risk`.
+   * **Paint a cylinder** of radius `ρ(label)` around the ray `(θ,φ)` for all `r_j`, adding `α·p_t(r_j)·K(d⊥)` and capping at 1.
+
+8. **Tracking update**:
+
+   * Update KCF/CSRT & Kalman state `[x,y,w,h,vx,vy]`.
+   * Maintain angular rates `θ̇, φ̇`, and radial velocity `v_r`.
+   * Handle new/missed tracks with grace periods.
+
+9. **Publish outputs** per track; render overlays; log metrics.
+
+---
+
+# 3) Algorithms (key math & rules)
+
+### 3.1 Angles
+
+From bbox center `(u,v)`:
+
+* Ray `d = normalize([ (u−cx)/fx, (v−cy)/fy, 1 ])`
+* `θ = atan2(d_x, d_z)`, `φ = atan2(d_y, sqrt(d_x^2+d_z^2))`
+
+### 3.2 Depth segment
+
+* Robust ROI depth estimate `r̂` (median over inner ROI).
+* Segment: `[r_min, r_max] = [max(ε, r̂ − m⁻(label, ROI)), r̂ + m⁺(label, ROI)]`.
+* Discretize: `r_j = r_min + j·Δr`.
+
+### 3.3 Association cost
+
+$$
+C_{ik} = w_\angle \sqrt{\frac{(\theta_i-\theta_k)^2}{\sigma_\theta^2} + \frac{(\phi_i-\phi_k)^2}{\sigma_\phi^2}}
++ w_{IoU}(1 - \mathrm{IoU})
++ w_{lbl} \cdot \mathbb{1}[\text{labels disagree}]
++ w_{BC}\Big(-\sum_j \sqrt{p_{k,t-1}(r_j)\, p'_{k\to i}(r_j)}\Big)
+$$
+
+### 3.4 Radial convolution
+
+$$
+\tilde{p}_t(r_j) \propto \sum_k p_{t-1}(r_k)\, \mathcal{N}(r_j-r_k\mid \mu_{\Delta r}, \sigma_{\Delta r}^2),\;\;
+\mu_{\Delta r}=v_r\Delta t,\;\sigma_{\Delta r}=\sigma_v\Delta t
+$$
+
+### 3.5 Direction correction
+
+Predict `θ_pred=θ_{t-1}+θ̇Δt`, `φ_pred=φ_{t-1}+φ̇Δt`
+
+$$
+\delta^2 = \frac{(\theta_t-\theta_{pred})^2}{\sigma_{\theta,dir}^2}
++ \frac{(\phi_t-\phi_{pred})^2}{\sigma_{\phi,dir}^2},\quad
+\alpha_{dir}=e^{-0.5\delta^2}
+$$
+
+$$
+p_t^{pred}(r_j) = \alpha_{dir}\,\tilde{p}_t(r_j) + (1-\alpha_{dir})\,u(r_j)
+$$
+
+Optional blend with depth likelihood and label confidence; normalize.
+
+### 3.6 Initialization (no prior)
+
+$$
+p_t(r_j) \propto \mathcal{N}(r_j \mid \mu_0(label, ROI), \sigma_0^2(label, ROI))
+$$
+
+### 3.7 Risk cylinder update
+
+For each `(r_j, θ_m, φ_n)` with transverse distance `d⊥ = r_j * angular_distance((θ_m,φ_n),(θ,φ)) ≤ ρ`:
+
+$$
+Risk(r_j, θ_m, φ_n) \leftarrow \min\left(1,\, Risk + \alpha(label)\, p_t(r_j)\, K(d_\perp)\right)
+$$
+
+Typical `K(d⊥)=exp(−d⊥²/(2ρ²))`.
+
+---
+
+# 4) Key modules & interfaces
+
+## 4.1 YOLO detector
+
+```kotlin
+data class YoloDet(val bbox: RectF, val probs: FloatArray) // aligned to class list
+
+interface ObjectDetector {
+    fun detect(frameYuv: ImageProxy): List<YoloDet>
+}
+```
+
+## 4.2 Specialist engines (local/remote)
+
+**Shared contract** (Kotlin types; see also HTTP/gRPC schema):
+
+```kotlin
+data class SpecialistRequest(
+    val frameId: String, val tsMs: Long, val bbox: RectF,
+    val roiJpegBase64: String?, val prior: Map<String, Float>,
+    val timeBudgetMs: Int
+)
+data class SpecialistResponse(
+    val label: String, val confidence: Float,
+    val aux: Map<String, Any>?, val usedMs: Int,
+    val engineId: String, val version: String
+)
+
+interface SpecialistEngine {
+    val id: String
+    suspend fun classify(req: SpecialistRequest): SpecialistResponse
+}
+```
+
+**Router:**
+
+```kotlin
+interface SelectionPolicy { fun pick(engines: List<SpecialistEngine>, yoloProbs: Map<String,Float>, bbox: RectF): List<SpecialistEngine> }
+interface DecisionPolicy { fun decide(responses: List<SpecialistResponse>, tau: Float): SpecialistResponse }
+
+class SpecialistRouter(...) {
+  suspend fun refine(frameRef: FrameRef, det: YoloDet): SpecialistResponse { ... }
+}
+```
+
+**Local paraglider engine wraps your geometric+classifier code (Option A/B).**
+**Remote engine** uses HTTP or gRPC; pass ROI JPEG + deadline; treat timeouts as `unknown`.
+
+## 4.3 Geometry + depth
+
+```kotlin
+data class Spherical(val theta: Float, val phi: Float)
+data class Segment(val rMin: Float, val rMax: Float, val dr: Float, val grid: FloatArray)
+
+interface DepthEstimator {
+    fun estimateRoiDepth(rgbRoi: Bitmap): Float // r̂
+}
+
+interface DepthMargins {
+    fun lower(label: String, roi: RectF): Float
+    fun upper(label: String, roi: RectF): Float
+}
+```
+
+## 4.4 Tracks & association
+
+```kotlin
+data class Track(
+  val id: Int, var label: String, var conf: Float,
+  var bbox: RectF, var sph: Spherical,
+  var rHat: Float, var segment: Segment,
+  var pdf: FloatArray, var vr: Float,
+  var thetaDot: Float, var phiDot: Float,
+  var lastTsMs: Long, var missed: Int
+)
+
+interface Associator {
+  fun associate(detections: List<DetCand>, tracks: List<Track>): Pair<List<Pair<DetCand,Track>>, List<DetCand>>
+}
+```
+
+## 4.5 Risk map
+
+```kotlin
+class SphericalRisk(val rBins:Int, val thetaBins:Int, val phiBins:Int, val rMax:Float, val phiMax:Float) {
+    fun decay(lambda: Float)
+    fun paintCylinder(theta: Float, phi: Float, segment: Segment, pdf: FloatArray, rho: Float, gain: Float)
+    fun get(rIdx:Int, tIdx:Int, pIdx:Int): Float
+}
+```
+
+---
+
+# 5) Threading & performance
+
+* **T1** (YOLO): GPU delegate / NNAPI; input resized to \~640 px.
+* **T2** (Router): launches engines with coroutine `withTimeout(timeBudgetMs)`.
+* **T3** (Depth): run ROI depth with mobile model \~256–384 px; cache model session.
+* **T4** (Assoc+Prob): CPU-light; operate on small vectors.
+* **T5** (Tracking): OpenCV KCF/CSRT in NDK; reuse buffers.
+* **Targets** (per frame):
+
+  * YOLO: ≤ 60 ms, Router: ≤ 120 ms (only for unconfident ROIs), Depth ROI: ≤ 30 ms/ROI, Assoc+Prob: ≤ 5 ms, Tracking: ≤ 5–10 ms.
+  * Total well under 200 ms on 5 FPS budget.
+
+---
+
+# 6) Configuration (hot-reloadable JSON)
+
+```json
+{
+  "thresholds": { "yolo_confident": 0.70, "spec_confident": 0.75 },
+  "router": {
+    "policy": "ByHintThenParallel",
+    "budget_ms": 120,
+    "engines": [
+      { "type": "local", "id": "paraglider_local_v1" },
+      { "type": "remote_http", "id": "fine_generic_v2", "baseUrl": "http://10.0.0.12:8080" }
+    ]
+  },
+  "depth": {
+    "dr": 2.0,
+    "margins": {
+      "paraglider": { "lower": 8.0, "upper": 12.0 },
+      "bird":       { "lower": 15.0, "upper": 25.0 },
+      "drone":      { "lower": 10.0, "upper": 20.0 },
+      "airplane":   { "lower": 25.0, "upper": 40.0 },
+      "default":    { "lower": 12.0, "upper": 20.0 }
+    },
+    "init_prior": {
+      "mu0": "r_hat",
+      "sigma0": "half_margin"
+    }
+  },
+  "association": {
+    "w_angle": 1.0, "sigma_theta": 0.02, "sigma_phi": 0.02,
+    "w_iou": 0.3, "w_label": 0.2, "w_bc": 0.6, "tau_assoc": 3.0
+  },
+  "motion": { "sigma_v": 5.0, "sigma_theta_dir": 0.03, "sigma_phi_dir": 0.03 },
+  "risk": {
+    "grid": { "r_bins": 128, "theta_bins": 64, "phi_bins": 32, "r_max": 5000.0, "phi_max": 0.7 },
+    "decay": 0.05,
+    "cylinder": { "rho_m": { "paraglider": 8.0, "bird": 4.0, "drone": 3.0, "airplane": 15.0, "default": 5.0 },
+                  "gain":  { "paraglider": 0.6, "bird": 0.5, "drone": 0.5, "airplane": 0.7, "default": 0.5 } }
+  }
+}
+```
+
+---
+
+# 7) Pseudocode (end-to-end core)
+
+```python
+def process_frame(frame, ts):
+    # 1) YOLO
+    dets = yolo.detect(frame)  # list of (bbox, probs)
+
+    rois = []
+    for det in dets:
+        if max(det.probs) >= tau_cls:
+            rois.append(ROI(bbox=det.bbox, label=argmax(det.probs), conf=max(det.probs)))
+        else:
+            resp = router.refine(frame_ref, det)  # local or external engines
+            rois.append(ROI(bbox=det.bbox, label=resp.label, conf=resp.confidence))
+
+    # 2) Angles + 3) Depth segment
+    for roi in rois:
+        roi.sph = pixel_to_angles(roi.bbox.center, intrinsics, extrinsics)
+        r_hat = depth_anything_roi(frame, roi.bbox)
+        m_minus, m_plus = margins(roi.label, roi.bbox)
+        roi.segment = make_segment(r_hat, m_minus, m_plus, dr)
+
+    # 4) Association
+    matches, new_rois = associator.associate(rois, tracks)
+
+    # 5) Update matched tracks (probabilities)
+    for roi, trk in matches:
+        p_pred = radial_convolution(trk.pdf, mu=trk.vr*dt, sigma=sigma_v*dt, target=roi.segment.grid)
+        alpha_dir = direction_agreement(trk.theta, trk.thetaDot, trk.phi, trk.phiDot, roi.sph, dt)
+        p_mix = normalize(alpha_dir*p_pred + (1-alpha_dir)*uniform(roi.segment.grid))
+        p_final = depth_and_label_blend(p_mix, r_hat=roi.segment.mu, conf=roi.conf, margins=(m_minus,m_plus))
+        trk.update(roi, p_final, ts)
+
+    # 6) Initialize new tracks
+    for roi in new_rois:
+        mu0, sigma0 = init_prior(roi)
+        p0 = gaussian_on_segment(roi.segment.grid, mu0, sigma0)
+        tracks.add(new_track(roi, p0, ts))
+
+    # 7) Risk field update
+    risk.decay(lambda_decay)
+    for trk in tracks.active():
+        rho = cylinder_radius(trk.label)
+        gain = cylinder_gain(trk.label)
+        risk.paintCylinder(trk.sph.theta, trk.sph.phi, trk.segment, trk.pdf, rho, gain)
+
+    return serialize(tracks), risk_snapshot(risk)
+```
+
+---
+
+# 8) Testing & validation
+
+**Unit tests**
+
+* Pixel→angles with synthetic intrinsics/poses.
+* Segment construction (margins, Δr).
+* Convolution correctness vs. analytical Gaussian.
+* Direction correction: synthetic angular motion scenarios.
+* Association: crossing tracks; label mismatch penalties; BC term sanity.
+* Risk painting: cylinder footprint geometry; decay.
+
+**Integration tests**
+
+* End-to-end with recorded sequences (paraglider, bird, drone, plane, unknown).
+* Timeouts & failure paths for remote engines (return to unknown, continue).
+* Config hot-reload (thresholds, margins) without restart.
+
+**Benchmarks**
+
+* Per-frame latency breakdown (T1…T5) on Galaxy A14.
+* Throughput at 5 FPS with 0, 2, 5 simultaneous ROIs.
+* Memory footprint (risk grid variants; FP16 option if needed).
+
+**Field tuning**
+
+* Start with generous depth margins, shrink as stability improves.
+* Adjust association weights to eliminate ID-switches.
+* Set `τ_spec` to avoid over-trusting noisy specialists.
+
+---
+
+# 9) Deployment & ops
+
+* **Models on device:** YOLOv8n/s (quantized), DepthAnything-mobile; optional TFLite GPU delegate.
+* **Remote engines:** Docker images with `/infer` (HTTP/gRPC), deadline enforcement; health probes; access control (JWT/TLS).
+* **Config:** served from app assets + optional remote override (Signed JSON).
+* **Logging/metrics:** per-stage latency; per-class counts; router decisions; association stats; risk map energy.
+* **Safety & privacy:** only ROI crops leave device; no PII in requests; configurable redaction.
+
+---
+
+# 10) Milestones
+
+1. **M1 Core skeleton**: Camera → YOLO gate → angles → dummy depth → tracks (no pdfs) → overlays.
+2. **M2 Depth + segment**: integrate DepthAnything; margins; render line segments.
+3. **M3 Association + pdf**: implement radial convolution, direction correction, init priors.
+4. **M4 Risk map**: 3D spherical grid; decay; cylinder paint; debug visualizer.
+5. **M5 SpecialistRouter**: local paraglider engine; thresholds; latency budgets.
+6. **M6 External engine**: HTTP adapter; timeouts; health checks.
+7. **M7 Perf & tuning**: hit latency targets; parameter sweeps; battery/run-time tests.
+8. **M8 QA & docs**: configs, telemetry, failure handling, app settings.
+
+---
+
+# 11) Deliverables (engineering checklist)
+
+* Android module `detector-yolov8` (TFLite/NCNN wrapper).
+* Module `router-specialists` with `SpecialistEngine` API; `ParagliderLocalEngine`; `RemoteHttpEngine`; policies.
+* Module `geometry-depth`: intrinsics/extrinsics helpers; DepthAnything-mobile wrapper; margins provider.
+* Module `tracking-prob`: KCF/CSRT NDK; Kalman; associator; radial convolution; direction correction; pdf utilities.
+* Module `riskfield`: spherical grid, decay, cylinder paint, snapshots.
+* App `ui-visualizer`: debug overlays for bbox, rays, segments, risk slices.
+* Config & telemetry modules; docs & examples.
+
+---
+
+This plan **implements your exact spec** with the **YOLOv8 front gate**, **flexible local/external refinement**, **angles + ROI depth band**, **cross-frame probabilistic update** (radial convolution + direction correction + Gaussian init), and the **cylindrical risk-map update**—all packaged for the Galaxy A14 with clear modules, APIs, and performance targets.
