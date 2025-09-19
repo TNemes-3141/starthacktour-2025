@@ -1,0 +1,679 @@
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Node.js Web App</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <h1>🚀 My Node.js Web App</h1>
+        </nav>
+    </header>
+    
+    <main>
+        <section class="hero">
+            <h2>Welcome to Your Node.js Web Application!</h2>
+            <p>Your Express.js server is up and running successfully.</p>
+            
+            <div class="features">
+                <div class="feature">
+                    <h3>Express.js</h3>
+                    <p>Fast, unopinionated web framework for Node.js</p>
+                </div>
+                <div class="feature">
+                    <h3>Static Files</h3>
+                    <p>Serving CSS, JavaScript, and images</p>
+                </div>
+                <div class="feature">
+                    <h3>API Ready</h3>
+                    <p>Built-in JSON parsing and API endpoints</p>
+                </div>
+            </div>
+            
+            <button id="api-test-btn" class="btn">Test API</button>
+            <div id="api-result"></div>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2024 My Node.js Web App. Built with Express.js</p>
+    </footer>
+    
+    <script src="/js/app.js"></script>
+</body>
+</html>
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Split Page - List & Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .left-panel {
+            width: 50%;
+            background-color: #f8f9fa;
+            border-right: 2px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .list-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-height: 0;
+        }
+
+        .list-section:first-child {
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .list-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-top: 0;
+            min-height: 0;
+        }
+
+        .right-panel {
+            width: 50%;
+            position: relative;
+        }
+
+        .list-header {
+            background-color: #343a40;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .list-header.secondary {
+            background-color: #343a40;
+        }
+
+        .list-header h2 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .list-header p {
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+
+        .list-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .list-item.expanded {
+            transform: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .item-content {
+            transition: all 0.3s ease;
+        }
+
+        .item-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            margin-top: 15px;
+            padding-top: 0;
+        }
+
+        .item-details.expanded {
+            max-height: 400px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .detail-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .list-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .item-title {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .item-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .item-meta {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #868e96;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .image-btn {
+            background: #0056b3;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .image-btn:hover {
+            background: #004494;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .image-btn:active {
+            transform: translateY(0);
+        }
+
+        .image-btn.expanded {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+
+        .image-btn.expanded:hover {
+            background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+        }
+
+        .list-item.active {
+            border-left: 4px solid #28a745;
+            background: #ffffff;
+        }
+
+        .list-item.past {
+            border-left: 4px solid #6c757d;
+            background: #ffffff;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px 20px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-past {
+            background-color: #d6d8db;
+            color: #383d41;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .map-header {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 250px;
+        }
+
+        .map-header h3 {
+            color: #343a40;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+
+        .map-header p {
+            color: #6c757d;
+            font-size: 0.8rem;
+            margin: 0;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .left-panel,
+            .right-panel {
+                width: 100%;
+                height: 50vh;
+            }
+            
+            .left-panel {
+                border-right: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel - Split Lists -->
+        <div class="left-panel">
+            <!-- Top List Section -->
+            <div class="list-section">
+                <div class="list-header">
+                    <h2>Active Objects</h2>
+                </div>
+                <div class="list-content" id="active-list">
+                    <!-- Active objects will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Bottom List Section -->
+            <div class="list-section">
+                <div class="list-header secondary">
+                    <h2>Past Object Log</h2>
+                </div>
+                <div class="list-content" id="past-list">
+                    <!-- Past objects will be populated here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Map -->
+        <div class="right-panel">
+            <div class="map-header">
+                <h3>Geneva, Switzerland</h3>
+                <p>International District Area</p>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <script>
+        // Configuration
+        const BACKEND_URL = 'http://localhost:3000'; // Change to your backend URL
+        const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
+        const UPDATE_INTERVAL = 30000; // Update every 30 seconds
+
+        // Initialize the map
+        let map = L.map('map').setView([46.2044, 6.1432], 13);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Add semi-transparent circular overlay at a fixed location
+        const overlayCenter = [46.2044, 6.1432]; // Geneva coordinates
+        const overlayRadius = 100; // Radius in meters (1km)
+        
+        const circleOverlay = L.circle(overlayCenter, {
+            color: '#FF6B6B',        // Border color (coral red)
+            fillColor: '#FF6B6B',    // Fill color (same as border)
+            fillOpacity: 0.15,       // Semi-transparent fill
+            opacity: 0.4,            // Semi-transparent border
+            radius: overlayRadius,   // Radius in meters
+            weight: 2                // Border width
+        }).addTo(map);
+
+        // Optional: Add a popup to the overlay
+        circleOverlay.bindPopup(`
+            <strong>Coverage Area</strong><br>
+            Center: ${overlayCenter[0].toFixed(4)}, ${overlayCenter[1].toFixed(4)}<br>
+            Radius: ${overlayRadius}m
+        `);
+
+        // Store markers and objects
+        let markers = new Map();
+        let allObjects = [];
+
+        // Fetch locations from backend
+        async function fetchLocations() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/locations`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching locations:', error);
+                return [];
+            }
+        }
+
+        // Check if object is active (within last 5 minutes)
+        function isActive(timestamp) {
+            const now = new Date().getTime();
+            const objectTime = new Date(timestamp).getTime();
+            return (now - objectTime) <= ACTIVE_THRESHOLD;
+        }
+
+        // Format timestamp for display
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - date) / (1000 * 60));
+            
+            if (diffMinutes < 1) return 'Just now';
+            if (diffMinutes === 1) return '1 minute ago';
+            if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+            
+            const diffHours = Math.floor(diffMinutes / 60);
+            if (diffHours === 1) return '1 hour ago';
+            if (diffHours < 24) return `${diffHours} hours ago`;
+            
+            return date.toLocaleDateString();
+        }
+
+        // Create list item HTML
+        function createListItem(obj, isActiveObj) {
+            const statusClass = isActiveObj ? 'active' : 'past';
+            const itemId = `item-${obj.id}`;
+            
+            return `
+                <div class="list-item ${statusClass}" id="${itemId}" onclick="focusLocation(${obj.latitude}, ${obj.longitude})">
+                    <div class="item-content">
+                        <div class="item-title">${obj.name}</div>
+                        <div class="item-summary" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85em; color: #6c757d;">
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                                <span><strong>ID:</strong> <code style="background: #f8f9fa; padding: 1px 3px; border-radius: 2px; font-size: 0.9em;">${obj.id}</code></span>
+                                <span><strong>Location:</strong> ${obj.latitude.toFixed(4)}, ${obj.longitude.toFixed(4)}</span>
+                                <span><strong>Time:</strong> ${formatTimestamp(obj.timestamp)}</span>
+                            </div>
+                            <button class="image-btn" id="btn-${itemId}" onclick="event.stopPropagation(); toggleItemDetails('${itemId}', '${obj.id}', ${isActiveObj})">
+                                📷 View
+                            </button>
+                        </div>
+                    </div>
+                    <div class="item-details" id="details-${itemId}">
+                        <!-- Details will be populated when expanded -->
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update markers on map
+        function updateMarkers(objects) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers.clear();
+
+            // Add markers for all objects
+            objects.forEach(obj => {
+                const isActiveObj = isActive(obj.timestamp);
+                const markerColor = isActiveObj ? 'green' : 'gray';
+                
+                // Create custom icon
+                const iconHtml = `
+                    <div style="
+                        background-color: ${isActiveObj ? '#28a745' : '#6c757d'};
+                        width: 12px;
+                        height: 12px;
+                        border-radius: 50%;
+                        border: 2px solid white;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    "></div>
+                `;
+                
+                const customIcon = L.divIcon({
+                    html: iconHtml,
+                    className: 'custom-marker',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                const marker = L.marker([obj.latitude, obj.longitude], { icon: customIcon })
+                    .addTo(map)
+                    .bindPopup(`
+                        <strong>${obj.name}</strong><br>
+                        <em>ID: ${obj.id}</em><br>
+                        Status: ${isActiveObj ? 'Active' : 'Past'}<br>
+                        Last seen: ${formatTimestamp(obj.timestamp)}
+                    `);
+                
+                markers.set(obj.id, marker);
+            });
+        }
+
+        // Update lists
+        function updateLists(objects) {
+            const activeList = document.getElementById('active-list');
+            const pastList = document.getElementById('past-list');
+            
+            const activeObjects = objects.filter(obj => isActive(obj.timestamp));
+            const pastObjects = objects.filter(obj => !isActive(obj.timestamp));
+
+            // Update active list
+            if (activeObjects.length === 0) {
+                activeList.innerHTML = '<div class="empty-state">No active objects</div>';
+            } else {
+                activeList.innerHTML = activeObjects
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .map(obj => createListItem(obj, true))
+                    .join('');
+            }
+
+            // Update past list
+            if (pastObjects.length === 0) {
+                pastList.innerHTML = '<div class="empty-state">No past objects</div>';
+            } else {
+                pastList.innerHTML = pastObjects
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                    .map(obj => createListItem(obj, false))
+                    .join('');
+            }
+        }
+
+        // Update data
+        async function updateData() {
+            const objects = await fetchLocations();
+            if (objects.length > 0) {
+                allObjects = objects;
+                
+                // Log unique IDs for debugging
+                const ids = objects.map(obj => obj.id);
+                const uniqueIds = [...new Set(ids)];
+                console.log(`📋 Received ${objects.length} objects with ${uniqueIds.length} unique IDs`);
+                if (ids.length !== uniqueIds.length) {
+                    console.warn('⚠️  Duplicate IDs detected in frontend:', ids.filter((id, index) => ids.indexOf(id) !== index));
+                }
+                
+                updateLists(objects);
+                updateMarkers(objects);
+                
+                // Auto-fit map to show all objects if this is the first load
+                if (markers.size > 0) {
+                    const group = new L.featureGroup(Array.from(markers.values()));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+        }
+
+        // Toggle item details expansion
+        function toggleItemDetails(itemId, objectId, isActive) {
+            const item = document.getElementById(itemId);
+            const details = document.getElementById(`details-${itemId}`);
+            const button = document.getElementById(`btn-${itemId}`);
+            
+            // Find the object in our stored data
+            const obj = allObjects.find(o => o.id === objectId);
+            if (!obj) {
+                console.error('Object not found:', objectId);
+                return;
+            }
+            
+            if (details.classList.contains('expanded')) {
+                // Collapse
+                details.classList.remove('expanded');
+                item.classList.remove('expanded');
+                button.classList.remove('expanded');
+                button.innerHTML = '📷 View';
+                details.innerHTML = '';
+            } else {
+                // Collapse all other expanded items first
+                document.querySelectorAll('.item-details.expanded').forEach(expandedDetail => {
+                    expandedDetail.classList.remove('expanded');
+                    expandedDetail.innerHTML = '';
+                });
+                document.querySelectorAll('.list-item.expanded').forEach(expandedItem => {
+                    expandedItem.classList.remove('expanded');
+                });
+                document.querySelectorAll('.image-btn.expanded').forEach(expandedBtn => {
+                    expandedBtn.classList.remove('expanded');
+                    expandedBtn.innerHTML = '📷 View';
+                });
+                
+                // Expand this item
+                const statusText = isActive ? 'Active' : 'Past';
+                const statusClass = isActive ? 'status-active' : 'status-past';
+                
+                details.innerHTML = `
+                    <img src="${obj.image || 'https://via.placeholder.com/300x200?text=No+Image'}" 
+                         alt="Image of ${obj.name}" 
+                         class="detail-image"
+                         onerror="this.src='https://via.placeholder.com/300x200?text=Image+Not+Found'">
+                `;
+                
+                details.classList.add('expanded');
+                item.classList.add('expanded');
+                button.classList.add('expanded');
+                button.innerHTML = '✕ Hide';
+            }
+        }
+
+        // Function to focus on a specific location
+        function focusLocation(lat, lng) {
+            map.setView([lat, lng], 16);
+            
+            // Find and open the popup for this location by checking coordinates
+            markers.forEach((marker, id) => {
+                const markerLatLng = marker.getLatLng();
+                if (Math.abs(markerLatLng.lat - lat) < 0.000001 && Math.abs(markerLatLng.lng - lng) < 0.000001) {
+                    marker.openPopup();
+                }
+            });
+        }
+
+        // Debug function to check ID statistics
+        async function checkIdStatistics() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/check-ids`);
+                if (response.ok) {
+                    const stats = await response.json();
+                    console.log('🔍 ID Statistics:', stats);
+                    if (stats.hasDuplicates) {
+                        console.warn('⚠️  Duplicate IDs found:', stats.duplicates);
+                    } else {
+                        console.log('✅ All IDs are unique!');
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching ID statistics:', error);
+            }
+        }
+
+        // Add keyboard shortcut to check IDs (Ctrl+I or Cmd+I)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                e.preventDefault();
+                checkIdStatistics();
+            }
+        });
+
+        // Initialize
+        updateData();
+
+        // Set up periodic updates
+        setInterval(updateData, UPDATE_INTERVAL);
+
+        // Check ID statistics on initial load
+        setTimeout(checkIdStatistics, 2000);
+
+        // Log debug info
+        console.log('🔧 Debug: Press Ctrl+I (or Cmd+I on Mac) to check ID statistics');
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
+        });
+    </script>
+</body>
+</html>
