@@ -457,7 +457,7 @@
                                 <span><strong>Time:</strong> ${formatTimestamp(obj.timestamp)}</span>
                             </div>
                             <button class="image-btn" id="btn-${itemId}" onclick="event.stopPropagation(); toggleItemDetails('${itemId}', '${obj.id}', ${isActiveObj})">
-                                📷 View
+                                View Image
                             </button>
                         </div>
                     </div>
@@ -583,7 +583,7 @@
                 details.classList.remove('expanded');
                 item.classList.remove('expanded');
                 button.classList.remove('expanded');
-                button.innerHTML = '📷 View';
+                button.innerHTML = 'View Image';
                 details.innerHTML = '';
             } else {
                 // Collapse all other expanded items first
@@ -596,7 +596,7 @@
                 });
                 document.querySelectorAll('.image-btn.expanded').forEach(expandedBtn => {
                     expandedBtn.classList.remove('expanded');
-                    expandedBtn.innerHTML = '📷 View';
+                    expandedBtn.innerHTML = 'View Image';
                 });
                 
                 // Expand this item
