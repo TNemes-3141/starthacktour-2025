@@ -1,48 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import EmptyState from "./EmptyState";
-import { ObjectData } from "./types";
 import { Card, CardHeader, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Divider } from "@heroui/divider";
 import { Accordion, AccordionItem } from "@heroui/accordion";
 import { Image } from "@heroui/image";
-import { ScrollShadow } from "@heroui/scroll-shadow";
+import { ManagedObject } from "../useObjectManager";
 
 interface Props {
   title?: string;
   type: "active" | "past";
+  objects: ManagedObject[];
 }
 
-export default function ObjectList({ title, type }: Props) {
-  const [objects, setObjects] = useState<ObjectData[]>([
-    {
-      id: 1,
-      timestamp: new Date("2025-01-01T12:00:00Z"),
-      bbox: {
-        top: 0,
-        left: 0,
-        bottom: 0,
-        right: 0,
-      },
-      class: "Paraglider",
-      confidence: 0.76,
-      speed_mps: 3.41,
-      distance: 244,
-      latitude: 46.2044,
-      longitude: 6.1432,
-    }
-  ]);
-
-  /*useEffect(() => {
-    fetchLocations().then((data) => {
-      const filtered = data.filter((obj) =>
-        type === "active" ? isActive(obj.timestamp) : !isActive(obj.timestamp)
-      );
-      setObjects(filtered);
-    });
-  }, [type]);*/
+export default function ObjectList({ title, type, objects }: Props) {
 
   return (
     <div className="flex flex-col h-full">
@@ -52,13 +24,13 @@ export default function ObjectList({ title, type }: Props) {
           <EmptyState text={`No ${type} objects yet.`} />
         ) : (
           objects.map((obj) => (
-            <Card key={obj.id}>
+            <Card key={obj.objectId}>
               <CardHeader className="flex justify-between items-end">
                 <div className="flex gap-3 items-center">
-                  <p className="text-xl font-bold">#{obj.id}: {obj.class}</p>
+                  <p className="text-xl font-bold">#{obj.objectId}: {obj.class}</p>
                   <p className="text-md text-gray-400">{(obj.confidence * 100).toFixed(0)} %</p>
                 </div>
-                <Chip>{formatDate(obj.timestamp)}</Chip>
+                <Chip>{formatDate(new Date(obj.timestamp))}</Chip>
               </CardHeader>
               <Divider />
               <CardBody className="flex flex-col gap-3">
@@ -66,25 +38,25 @@ export default function ObjectList({ title, type }: Props) {
                   {/* Speed */}
                   <div>
                     <div className="font-bold text-sm">Speed (m/s)</div>
-                    <div>{obj.speed_mps.toFixed(2)}</div>
+                    <div>{obj.speedMps?.toFixed(2) ?? "N.A."}</div>
                   </div>
 
                   {/* Distance */}
                   <div>
                     <div className="font-bold text-sm">Distance to cam (m)</div>
-                    <div>{obj.distance.toFixed(1)}</div>
+                    <div>{obj.distanceM?.toFixed(1) ?? "N.A."}</div>
                   </div>
 
                   {/* Latitude */}
                   <div>
                     <div className="font-bold text-sm">Latitude</div>
-                    <div>{obj.latitude.toFixed(5)}</div>
+                    <div>{obj.latitude?.toFixed(5) ?? "N.A."}</div>
                   </div>
 
                   {/* Longitude */}
                   <div>
                     <div className="font-bold text-sm">Longitude</div>
-                    <div>{obj.longitude.toFixed(5)}</div>
+                    <div>{obj.longitude?.toFixed(5) ?? "N.A."}</div>
                   </div>
                 </div>
                 <Accordion>
@@ -92,11 +64,10 @@ export default function ObjectList({ title, type }: Props) {
                     <div className="flex justify-center">
                       <Image
                         alt="HeroUI hero Image"
-                        src="https://szctehfhcijgnwwlvvco.supabase.co/storage/v1/object/public/images/4091e73a-2df1-4912-a939-594d32695c4f/2025-09-20/snapshot_2025-09-20T10-00-51.389602.jpg"
+                        src={obj.snapshotUrl ?? ""}
                         width={400}
                       />
                     </div>
-
                   </AccordionItem>
                 </Accordion>
               </CardBody>
