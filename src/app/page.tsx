@@ -33,7 +33,7 @@ export default function Home() {
     <DashboardLayout
       leftTop={<ObjectList title="Active Objects" type="active" objects={active} />}
       leftBottom={<ObjectList type="past" objects={past} />}
-      right={<MapView />}
+      right={<MapView objects={active} />}
     />
   );
 }

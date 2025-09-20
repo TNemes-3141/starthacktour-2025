@@ -18,7 +18,7 @@ export default function RootLayout({
         <Providers>
           {/* App shell */}
           <div className="min-h-screen flex flex-col">
-            <Header imageSrc="/jedsy.png" size={120}/>
+            <Header imageSrc="/jedsy.png" size={130}/>
             <main className="flex-1 overflow-hidden">{children}</main>
           </div>
         </Providers>
