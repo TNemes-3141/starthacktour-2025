@@ -65,25 +65,25 @@ export default function ObjectList({ title, type }: Props) {
                 <div className="grid grid-cols-4 text-center gap-4">
                   {/* Speed */}
                   <div>
-                    <div className="font-semibold text-sm">Speed (m/s)</div>
+                    <div className="font-bold text-sm">Speed (m/s)</div>
                     <div>{obj.speed_mps.toFixed(2)}</div>
                   </div>
 
                   {/* Distance */}
                   <div>
-                    <div className="font-semibold text-sm">Distance to cam (m)</div>
+                    <div className="font-bold text-sm">Distance to cam (m)</div>
                     <div>{obj.distance.toFixed(1)}</div>
                   </div>
 
                   {/* Latitude */}
                   <div>
-                    <div className="font-semibold text-sm">Latitude</div>
+                    <div className="font-bold text-sm">Latitude</div>
                     <div>{obj.latitude.toFixed(5)}</div>
                   </div>
 
                   {/* Longitude */}
                   <div>
-                    <div className="font-semibold text-sm">Longitude</div>
+                    <div className="font-bold text-sm">Longitude</div>
                     <div>{obj.longitude.toFixed(5)}</div>
                   </div>
                 </div>
