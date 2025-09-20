@@ -8,9 +8,15 @@
     "start": "next start"
   },
   "dependencies": {
+    "@heroui/accordion": "^2.2.23",
     "@heroui/button": "^2.2.26",
+    "@heroui/card": "^2.2.24",
+    "@heroui/chip": "^2.2.21",
+    "@heroui/divider": "^2.2.19",
+    "@heroui/image": "^2.2.16",
     "@heroui/navbar": "^2.2.24",
     "@heroui/react": "^2.8.4",
+    "@heroui/scroll-shadow": "^2.3.17",
     "@heroui/system": "^2.4.22",
     "@heroui/theme": "^2.4.22",
     "@supabase/ssr": "^0.7.0",
@@ -20,6 +26,7 @@
     "drizzle-orm": "^0.44.5",
     "framer-motion": "^12.23.16",
     "leaflet": "^1.9.4",
+    "lucide-react": "^0.544.0",
     "next": "15.5.3",
     "postcss": "^8.5.6",
     "postgres": "^3.4.7",

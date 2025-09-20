@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils"; // optional helper if you have one; otherwise remove
-import { Navbar, NavbarBrand } from "@heroui/react";
+import { Navbar, NavbarBrand, NavbarContent } from "@heroui/react";
 
 type HeaderProps = {
   /** Optional PNG/SVG path. If omitted, a gray placeholder is shown. */
@@ -18,9 +18,9 @@ export default function Header({
   size = 64,
 }: HeaderProps) {
   return (
-    <Navbar position="static" className="bg-green-200">
+    <Navbar position="static" className="bg-green-700">
       <NavbarBrand>
-        <span className="text-2xl font-semibold tracking-wide">FlySafe</span>
+        <span className="text-2xl text-white font-semibold tracking-wide">FlySafe</span>
         {imageSrc ? (
           <Image
             src={imageSrc}
@@ -40,6 +40,9 @@ export default function Header({
           />
         )}
       </NavbarBrand>
+      <NavbarContent>
+
+      </NavbarContent>
     </Navbar>
   );
 }

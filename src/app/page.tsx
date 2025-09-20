@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <DashboardLayout
       leftTop={<ObjectList title="Active Objects" type="active" />}
-      leftBottom={<ObjectList title="Past Object Log" type="past" />}
+      leftBottom={<ObjectList type="past" />}
       right={<MapView />}
     />
   );

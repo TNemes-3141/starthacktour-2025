@@ -1,8 +1,17 @@
 export interface ObjectData {
-    id: string;
-    name: string;
+    id: number;
+    timestamp: Date;
+    bbox: {
+        top: number;
+        left: number;
+        bottom: number;
+        right: number;
+    }
+    class: string;
+    confidence: number;
+    speed_mps: number;
+    distance: number;
     latitude: number;
     longitude: number;
-    timestamp: string;
     image?: string;
 }
