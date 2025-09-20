@@ -1,20 +1,15 @@
 "use client";
-import { Button, ButtonGroup } from "@heroui/button";
-import { listAllUsers, UserData } from "./actions";
+
+import DashboardLayout from "./components/DashboardLayout";
+import ObjectList from "./components/ObjectList";
+import MapView from "./components/MapView";
 
 export default function Home() {
-  var users: UserData[] | undefined;
-
-  var getUsers = async () => {
-    users = await listAllUsers();
-    console.log(users);
-  }
-
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Button color="primary" onPress={getUsers}>Button</Button>
-      </main>
-    </div>
+    <DashboardLayout
+      leftTop={<ObjectList title="Active Objects" type="active" />}
+      leftBottom={<ObjectList title="Past Object Log" type="past" />}
+      right={<MapView />}
+    />
   );
 }
