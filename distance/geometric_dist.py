@@ -38,10 +38,6 @@ def _normal_ppf(p: float) -> float:
     Valid for p in (0,1). Handles symmetry.
     """
     if not 0.0 < p < 1.0:
-        if p == 0.0:
-            return -math.inf
-        if p == 1.0:
-            return math.inf
         raise ValueError("p must be in (0,1)")
     # Coefficients in rational approximations
     a = [ -3.969683028665376e+01,
