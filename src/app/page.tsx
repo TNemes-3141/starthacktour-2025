@@ -1,20 +1,39 @@
 "use client";
-import { Button, ButtonGroup } from "@heroui/button";
-import { listAllUsers, UserData } from "./actions";
+
+import DashboardLayout from "./components/DashboardLayout";
+import ObjectList from "./components/ObjectList";
+import MapView from "./components/MapView";
+import { useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useObjectManager } from "./useObjectManager";
 
 export default function Home() {
-  var users: UserData[] | undefined;
+  const supabase = createClient();
+  const { active, past, addOrUpdate } = useObjectManager();
 
-  var getUsers = async () => {
-    users = await listAllUsers();
-    console.log(users);
-  }
+  useEffect(() => {
+    // Subscribe to new rows
+    const channel = supabase
+      .channel("object_updates")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "object_updates" },
+        (payload) => {
+          addOrUpdate(payload.new as any);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [addOrUpdate]);
 
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Button color="primary" onPress={getUsers}>Button</Button>
-      </main>
-    </div>
+    <DashboardLayout
+      leftTop={<ObjectList title="Active Objects" type="active" objects={active} />}
+      leftBottom={<ObjectList type="past" objects={past} />}
+      right={<MapView objects={active} />}
+    />
   );
 }
