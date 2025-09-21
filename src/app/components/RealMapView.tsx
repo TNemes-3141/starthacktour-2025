@@ -90,32 +90,111 @@ export default function RealMapView({ objects }: { objects: ObjectUpdate[] }) {
                         !isNaN(o.latitude) &&
                         !isNaN(o.longitude)
                 )
-                .map((o) => (
-                    <WarningMarker
+                .map((o) => {
+                    const scaled = anisotropicScaleFromCamera(
+                        o.latitude!,
+                        o.longitude!,
+                        CAMERA.position.lat,
+                        CAMERA.position.lng,
+                        CAMERA.azimuthDeg,
+                        5,  // stretch factor forward
+                        10   // stretch factor sideways
+                    );
+
+                    return <WarningMarker
                         key={o.objectId}
                         id={o.objectId}
                         name={o.class}
                         confidence={o.confidence}
-                        lat={o.latitude!}
-                        lng={o.longitude!}
+                        lat={scaled.lat}
+                        lng={scaled.lng}
                         speedMps={o.speedMps ?? -1}
                         distanceM={o.distanceM ?? -1}
                     />
-                ))}
+                })}
         </MapContainer>
     );
 }
 
 function WarningMarker({ lat, lng, id, name, confidence, speedMps, distanceM }: { lat: number; lng: number; id: string; name: string; confidence: number; speedMps: number, distanceM: number }) {
+    var divIcon;
+
+    switch (name) {
+        case "paraglider":
+            divIcon = parachuteDivIcon;
+            break;
+        case "person":
+            divIcon = personDivIcon;
+            break;
+        case "airplane":
+            divIcon = airplaneDivIcon;
+            break;
+        case "bird":
+            divIcon = birdDivIcon;
+            break;
+        default:
+            divIcon = warningDivIcon;
+            break;
+    }
+
     return (
-        <Marker position={[lat, lng]} icon={warningDivIcon}>
+        <Marker position={[lat, lng]} icon={divIcon}>
             <Popup>
                 <div className="text-sm">
                     <div><strong>#{id}: {name} ({(confidence * 100).toFixed(0)}%)</strong></div>
-                    <div>Velocity: {speedMps === -1 ? "N.A." : speedMps} m/s</div>
-                    <div>Elevation: {distanceM == -1 ? "N.A." : distanceM} m</div>
+                    <div>Velocity: {speedMps === -1 ? "N.A." : speedMps.toFixed(2)} m/s</div>
+                    <div>Elevation: {distanceM == -1 ? "N.A." : distanceM.toFixed(2)} m</div>
                 </div>
             </Popup>
         </Marker>
     );
+}
+
+const R = 6371000; // Earth radius in m
+
+function latLngToMeters(lat: number, lng: number, refLat: number, refLng: number) {
+    const dLat = (lat - refLat) * Math.PI / 180;
+    const dLng = (lng - refLng) * Math.PI / 180;
+    return {
+        x: dLng * Math.cos(refLat * Math.PI / 180) * R,
+        y: dLat * R,
+    };
+}
+
+function metersToLatLng(x: number, y: number, refLat: number, refLng: number) {
+    const dLat = y / R;
+    const dLng = x / (R * Math.cos(refLat * Math.PI / 180));
+    return {
+        lat: refLat + dLat * 180 / Math.PI,
+        lng: refLng + dLng * 180 / Math.PI,
+    };
+}
+
+export function anisotropicScaleFromCamera(
+    lat: number,
+    lng: number,
+    camLat: number,
+    camLng: number,
+    azimuthDeg: number,
+    scaleForward: number,
+    scalePerp: number
+) {
+    // Step 1: to local meters
+    const { x, y } = latLngToMeters(lat, lng, camLat, camLng);
+
+    // Step 2: rotate into camera frame
+    const theta = azimuthDeg * Math.PI / 180;
+    const xr = Math.cos(theta) * x + Math.sin(theta) * y;
+    const yr = -Math.sin(theta) * x + Math.cos(theta) * y;
+
+    // Step 3: anisotropic scaling
+    const xrScaled = xr * scaleForward;
+    const yrScaled = yr * scalePerp;
+
+    // Step 4: rotate back
+    const xFinal = Math.cos(theta) * xrScaled - Math.sin(theta) * yrScaled;
+    const yFinal = Math.sin(theta) * xrScaled + Math.cos(theta) * yrScaled;
+
+    // Step 5: back to lat/lng
+    return metersToLatLng(xFinal, yFinal, camLat, camLng);
 }

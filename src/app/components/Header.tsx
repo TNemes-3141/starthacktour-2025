@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils"; // optional helper if you have one; otherwise remove
-import { Navbar, NavbarBrand, NavbarContent } from "@heroui/react";
+import {
+  Navbar, NavbarBrand, NavbarContent, NavbarItem, Button, useDisclosure, Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  Link
+} from "@heroui/react";
 
 type HeaderProps = {
   /** Optional PNG/SVG path. If omitted, a gray placeholder is shown. */
@@ -17,6 +23,8 @@ export default function Header({
   imageAlt = "FlySafe decorative image",
   size = 64,
 }: HeaderProps) {
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+
   return (
     <Navbar position="static" className="bg-green-700">
       <NavbarBrand>
@@ -40,8 +48,24 @@ export default function Header({
           />
         )}
       </NavbarBrand>
-      <NavbarContent>
-
+      <NavbarContent justify="end">
+        <NavbarItem>
+          <Button variant="bordered" onPress={onOpen} className="text-white">Resources</Button>
+          <Drawer isOpen={isOpen} onOpenChange={onOpenChange} placement="left">
+            <DrawerContent>
+              {(onClose) => (
+                <>
+                  <DrawerHeader className="flex flex-col gap-1">Resources</DrawerHeader>
+                  <DrawerBody>
+                    <Link href="https://www.skybriefing.com/de/dabs">DABS</Link>
+                    <Link href="https://live.glidernet.org/#c=47.30659,9.43178&z=16&s=1">Open Glider Network</Link>
+                    <Link href="https://www.flightradar24.com/">FlightRadar</Link>
+                    <Link href="https://www.safesky.app/">SafeSky</Link>
+                  </DrawerBody>
+                </>)}
+            </DrawerContent>
+          </Drawer>
+        </NavbarItem>
       </NavbarContent>
     </Navbar>
   );

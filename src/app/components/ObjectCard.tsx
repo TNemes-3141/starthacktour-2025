@@ -38,7 +38,7 @@ export default function ObjectCard({ obj, variant = "static" }: Props) {
       </CardHeader>
       <Divider />
       <CardBody className="flex flex-col gap-3">
-        <div className={cn("grid text-center gap-4", variant === "static" ? "grid-cols-5" : "grid-cols-4")}>
+        <div className={cn("grid text-center gap-4", variant === "static" ? "grid-cols-4" : "grid-cols-5")}>
           {/* Speed */}
           <div>
             <div className="font-bold text-sm">Velocity</div>
@@ -63,7 +63,7 @@ export default function ObjectCard({ obj, variant = "static" }: Props) {
             <div>{obj.longitude?.toFixed(5) ?? "N.A."}</div>
           </div>
 
-          {variant === "static" && (
+          {variant === "relative" && (
             <div>
               <div className="font-bold text-sm">Timestamp</div>
               <div>{formatDate(timestamp)}</div>
@@ -77,7 +77,7 @@ export default function ObjectCard({ obj, variant = "static" }: Props) {
               <Image
                 alt="Snapshot"
                 src={obj.snapshotUrl ?? ""}
-                width={400}
+                width={300}
               />
             </div>
           </AccordionItem>
