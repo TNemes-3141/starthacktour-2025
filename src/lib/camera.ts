@@ -17,13 +17,13 @@ export const FOV = {
 };
 
 export const CAMERA = {
-    position: { lat: 47.30658844506907, lng: 9.431777965149525 } as LatLng,
+    position: { lat: 47.43338825322586, lng: 9.374795085582502 } as LatLng,
 
     /**
      * Direction the camera is pointing, in degrees azimuth:
      * 0 = North, 90 = East, 180 = South, 270 = West
      */
-    azimuthDeg: 225,
+    azimuthDeg: 315,
 
     /**
      * Elevation angle above the water-level (horizontal):
